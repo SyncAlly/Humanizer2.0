@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Humanizer</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="css/style.css"/>
+
+  <!-- Supabase CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════
+     NAVIGATION
+═══════════════════════════════════════════════════ -->
+<nav class="nav">
+  <div class="nav-logo">human<span>izer</span></div>
+
+  <div class="nav-tabs">
+    <button class="tab-btn active" data-tab="humanize">Humanize</button>
+    <button class="tab-btn" data-tab="setup">Setup</button>
+    <button class="tab-btn" data-tab="profile">
+      Profile
+    </button>
+    <button class="tab-btn" data-tab="history">
+      History
+      <span id="historyCountBadge"
+            style="display:none; font-size:10px; color:var(--green); margin-left:4px"></span>
+    </button>
+    <button class="tab-btn" data-tab="settings">Settings</button>
+  </div>
+
+  <div class="nav-right">
+    <span class="rate-badge" id="rateBadge">— / 20 left</span>
+    <div class="api-indicator">
+      <div class="api-dot connected" id="apiDot"></div>
+      <span id="userEmail" class="text-xs text-muted truncate"
+            style="max-width:120px"></span>
+    </div>
+    <button class="btn-ghost btn-sm" id="signOutBtn">Sign out</button>
+  </div>
+</nav>
+
+
+<!-- ══════════════════════════════════════════════════
+     TAB 1 — HUMANIZE
+═══════════════════════════════════════════════════ -->
+<div class="view active" data-view="humanize">
+
+  <div class="page-header">
+    <div>
+      <h2>Humanize text</h2>
+      <p class="subtitle">Paste AI-generated text. Get back something that sounds like you.</p>
+    </div>
+  </div>
+
+  <!-- No-profile banner -->
+  <div class="no-profile-banner" id="noProfileBanner">
+    <span>⚠ No style profile — using generic humanization rules. Go to Setup to train your profile.</span>
+    <button class="btn btn-sm"
+            style="border-color:var(--red);color:var(--red);flex-shrink:0"
+            onclick="switchTabGlobal('setup')">Go to Setup →</button>
+  </div>
+
+  <!-- Strength + diff toggle row -->
+  <div class="strength-row">
+    <span class="strength-label">Strength:</span>
+    <button class="strength-opt" data-strength="light">Light</button>
+    <button class="strength-opt active" data-strength="medium">Medium</button>
+    <button class="strength-opt" data-strength="aggressive">Aggressive</button>
+    <div style="margin-left:auto" class="toggle-row">
+      <label class="toggle">
+        <input type="checkbox" id="diffToggle" checked/>
+        <div class="toggle-track"></div>
+        <div class="toggle-thumb"></div>
+      </label>
+      <span>Show changes</span>
+    </div>
+  </div>
+
+  <!-- Split pane: input | output -->
+  <div class="split-pane mt-3">
+
+    <!-- Input pane -->
+    <div class="pane">
+      <div class="pane-header">
+        <span class="pane-title">Input — paste text here</span>
+        <button class="btn-ghost btn-sm" onclick="clearInput()">Clear</button>
+      </div>
+      <textarea
+        id="inputText"
+        placeholder="Paste your AI-generated or generic text here…"
+        spellcheck="false"
+      ></textarea>
+      <div class="wc-bar">
+        <div class="wc-stats">
+          <span id="inputWords">0 words</span>
+          <span id="inputChars">0 chars</span>
+        </div>
+        <span id="inputReadTime">~0 min read</span>
+      </div>
+    </div>
+
+    <!-- Output pane -->
+    <div class="pane">
+      <div class="pane-header">
+        <span class="pane-title">Output — humanized</span>
+        <div class="row" style="gap:var(--sp-2)">
+          <button class="btn-ghost btn-sm" id="rewriteBtn" disabled>↺ Rewrite</button>
+          <button class="btn-ghost btn-sm" id="copyBtn">Copy</button>
+        </div>
+      </div>
+      <div class="output-content empty" id="outputContent">
+        Output will appear here after humanizing.
+      </div>
+      <div class="wc-bar" id="outputWCBar" style="display:none">
+        <div class="wc-stats">
+          <span id="outputWords">0 words</span>
+          <span id="outputChars">0 chars</span>
+        </div>
+        <span id="outputReadTime">~0 min read</span>
+      </div>
+      <div class="feedback-row" id="feedbackRow" style="display:none">
+        <span class="feedback-label">Was this good?</span>
+        <button class="btn btn-primary btn-sm" id="acceptBtn">✓ Accept & learn</button>
+        <button class="btn btn-sm" id="rejectBtn">✗ Try again</button>
+      </div>
+    </div>
+
+  </div><!-- /split-pane -->
+
+  <!-- Controls row -->
+  <div class="row mt-4">
+    <button class="btn btn-primary btn-lg" id="humanizeBtn"
+            onclick="runHumanize()">
+      Humanize →
+    </button>
+    <button class="btn btn-sm" id="cancelBtn" style="display:none">
+      Cancel
+    </button>
+    <div class="loader" id="loader">
+      <div class="loader-dots"><span></span><span></span><span></span></div>
+      <span id="loaderText">Rewriting…</span>
+    </div>
+  </div>
+
+</div><!-- /view humanize -->
+
+
+<!-- ══════════════════════════════════════════════════
+     TAB 2 — SETUP
+═══════════════════════════════════════════════════ -->
+<div class="view" data-view="setup">
+
+  <div class="page-header">
+    <div>
+      <h2>Setup your profile</h2>
+      <p class="subtitle">Paste samples of your own writing so Humanizer learns your style.</p>
+    </div>
+  </div>
+
+  <div class="grid-2">
+
+    <!-- Writing samples card -->
+    <div class="card">
+      <div class="label-xs mb-3">Step 1 — Add writing samples</div>
+      <h3>Paste your writing</h3>
+      <p class="text-sans text-sm text-muted mt-2 mb-3">
+        Emails, notes, messages — anything you wrote yourself.
+        Aim for 5–10 samples. Avoid formal documents or things you edited heavily.
+      </p>
+      <div class="form-group">
+        <textarea id="sampleInput"
+                  placeholder="Paste a writing sample here…&#10;&#10;Then click Add Sample."
+                  style="min-height:160px"></textarea>
+      </div>
+      <div class="row mt-3">
+        <button class="btn btn-primary" onclick="handleAddSample()">Add sample</button>
+        <span id="sampleCount" class="text-xs text-muted" style="align-self:center">
+          0 samples added
+        </span>
+      </div>
+
+      <!-- Live stats after adding samples -->
+      <div class="profile-stats" id="profileStats" style="display:none">
+        <div class="stat-box">
+          <div class="val" id="statBurst">—</div>
+          <div class="lbl">burstiness</div>
+        </div>
+        <div class="stat-box">
+          <div class="val" id="statSentLen">—</div>
+          <div class="lbl">avg sent. length</div>
+        </div>
+        <div class="stat-box">
+          <div class="val" id="statContractions">—</div>
+          <div class="lbl">contraction rate</div>
+        </div>
+      </div>
+
+      <!-- Signal badges -->
+      <div class="profile-badges" id="profileBadges"></div>
+
+      <div class="row mt-4">
+        <button class="btn btn-primary" id="buildBtn" disabled onclick="handleBuildProfile()">
+          Build profile
+        </button>
+        <button class="btn btn-danger" onclick="handleClearSamples()">
+          Clear all
+        </button>
+      </div>
+    </div>
+
+    <!-- What this does card -->
+    <div class="card">
+      <div class="label-xs mb-3">How it works</div>
+      <h3>What Humanizer extracts</h3>
+      <p class="text-sans text-sm text-muted mt-2 mb-4">
+        Your samples are analysed locally — no text is sent to a server
+        during this step. The profile is a set of statistics, not the samples themselves.
+      </p>
+
+      <div class="col" style="gap:var(--sp-3)">
+        <div style="display:flex; gap:var(--sp-3); align-items:flex-start">
+          <span style="color:var(--green); flex-shrink:0; margin-top:1px">→</span>
+          <div>
+            <div class="text-xs text-bright" style="font-weight:500">Burstiness</div>
+            <div class="text-xs text-muted text-sans mt-1">
+              Variance in sentence length — the primary signal GPTZero measures.
+              Humans mix short and long sentences; AI writes uniform ones.
+            </div>
+          </div>
+        </div>
+        <div style="display:flex; gap:var(--sp-3); align-items:flex-start">
+          <span style="color:var(--green); flex-shrink:0; margin-top:1px">→</span>
+          <div>
+            <div class="text-xs text-bright" style="font-weight:500">Contraction & first-person rate</div>
+            <div class="text-xs text-muted text-sans mt-1">
+              Signals formality and personal voice — AI defaults to formal and impersonal.
+            </div>
+          </div>
+        </div>
+        <div style="display:flex; gap:var(--sp-3); align-items:flex-start">
+          <span style="color:var(--green); flex-shrink:0; margin-top:1px">→</span>
+          <div>
+            <div class="text-xs text-bright" style="font-weight:500">Distinctive vocabulary</div>
+            <div class="text-xs text-muted text-sans mt-1">
+              Words you use regularly but aren't common stopwords — your lexical fingerprint.
+            </div>
+          </div>
+        </div>
+        <div style="display:flex; gap:var(--sp-3); align-items:flex-start">
+          <span style="color:var(--green); flex-shrink:0; margin-top:1px">→</span>
+          <div>
+            <div class="text-xs text-bright" style="font-weight:500">Punctuation habits</div>
+            <div class="text-xs text-muted text-sans mt-1">
+              Em dashes, ellipsis, semicolons — small signals that accumulate.
+            </div>
+          </div>
+        </div>
+        <div style="display:flex; gap:var(--sp-3); align-items:flex-start">
+          <span style="color:var(--amber); flex-shrink:0; margin-top:1px">⚠</span>
+          <div>
+            <div class="text-xs text-bright" style="font-weight:500">AI filler detection</div>
+            <div class="text-xs text-muted text-sans mt-1">
+              If your samples contain AI filler words, they're flagged — not incorporated.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /grid-2 -->
+</div><!-- /view setup -->
+
+
+<!-- ══════════════════════════════════════════════════
+     TAB 3 — PROFILE
+═══════════════════════════════════════════════════ -->
+<div class="view" data-view="profile">
+
+  <div class="page-header">
+    <div>
+      <h2>Your style profile</h2>
+      <p class="subtitle">What Humanizer has learned about how you write.</p>
+    </div>
+    <button class="btn btn-danger btn-sm" onclick="handleClearProfile()">
+      Reset profile
+    </button>
+  </div>
+
+  <p class="text-muted text-sm" id="profileEmpty">
+    No profile yet — go to Setup and add writing samples.
+  </p>
+
+  <div class="profile-detail-grid" id="profileDetail" style="display:none"></div>
+
+</div><!-- /view profile -->
+
+
+<!-- ══════════════════════════════════════════════════
+     TAB 4 — HISTORY
+═══════════════════════════════════════════════════ -->
+<div class="view" data-view="history">
+
+  <div class="page-header">
+    <div>
+      <h2>Rewrite history</h2>
+      <p class="subtitle">Every humanized output from this and previous sessions. Click any entry to restore it.</p>
+    </div>
+    <button class="btn btn-danger btn-sm" onclick="handleClearHistory()">
+      Clear history
+    </button>
+  </div>
+
+  <p class="text-muted text-sm" id="historyEmpty" style="display:none">
+    No rewrites yet — go to Humanize and run your first rewrite.
+  </p>
+
+  <div class="history-list" id="historyList"></div>
+
+</div><!-- /view history -->
+
+
+<!-- ══════════════════════════════════════════════════
+     TAB 5 — SETTINGS
+═══════════════════════════════════════════════════ -->
+<div class="view" data-view="settings">
+
+  <div class="page-header">
+    <div>
+      <h2>Settings</h2>
+      <p class="subtitle">Manage your Gemini API key and account.</p>
+    </div>
+  </div>
+
+  <div class="grid-2">
+
+    <!-- API key card -->
+    <div class="card">
+      <div class="label-xs mb-3">Gemini API key</div>
+      <h3>Connect your API key</h3>
+      <p class="text-sans text-sm text-muted mt-2 mb-4">
+        Get a free key from
+        <a href="https://aistudio.google.com" target="_blank" rel="noopener">
+          Google AI Studio
+        </a>.
+        Your key is encrypted with AES-256 before storage — it never appears
+        in network responses or logs.
+      </p>
+
+      <!-- Current status -->
+      <div class="key-status" id="keyStatus">Checking…</div>
+
+      <!-- Input for new key -->
+      <div class="form-group mt-4">
+        <label class="form-label">New API key</label>
+        <input type="password"
+               id="apiKeyInput"
+               placeholder="AIzaSy…"
+               autocomplete="off"
+               spellcheck="false"/>
+        <p class="form-hint">
+          Paste your key above, then click Save. The field clears after saving.
+        </p>
+      </div>
+
+      <div class="row mt-3">
+        <button class="btn btn-primary" id="saveKeyBtn">Save key</button>
+        <button class="btn btn-danger" id="deleteKeyBtn">Delete key</button>
+      </div>
+    </div>
+
+    <!-- Account card -->
+    <div class="card">
+      <div class="label-xs mb-3">Account</div>
+      <h3 id="settingsEmail" class="text-bright">—</h3>
+      <p class="text-sans text-sm text-muted mt-2 mb-4">
+        Signed in via Google. Your profile and API key are tied to this account.
+      </p>
+      <button class="btn btn-sm" id="signOutBtn2" onclick="handleSignOut()">
+        Sign out
+      </button>
+
+      <div style="margin-top:var(--sp-6); padding-top:var(--sp-5); border-top:1px solid var(--border-0)">
+        <div class="label-xs mb-3">Rate limits</div>
+        <p class="text-sans text-sm text-muted">
+          20 rewrites per hour · 100 per day.<br/>
+          Limits are per account, not shared.
+        </p>
+      </div>
+    </div>
+
+  </div>
+</div><!-- /view settings -->
+
+
+<!-- Toast -->
+<div id="toast"></div>
+
+
+<!-- ══════════════════════════════════════════════════
+     APP SCRIPT
+═══════════════════════════════════════════════════ -->
+<script type="module">
+  import { initAuth, signOut, getUser, onAuthChange } from './js/auth.js';
+  import {
+    addSample, buildProfile, clearSamples, getProfile,
+    getSampleCount, getAcceptedCount,
+    loadProfileFromBackend, saveProfileToBackend,
+    renderProfileStats, renderProfileDetail,
+  } from './js/profile.js';
+  import { initHumanize, humanize, loadUsageStats } from './js/humanize.js';
+  import { renderHistory, clearHistory }             from './js/history.js';
+  import {
+    initUI, switchTab, onTabOpen,
+    toast, showNoProfileBanner, hideNoProfileBanner,
+    renderUserNav, initSettings, updateWordCount,
+  } from './js/ui.js';
+
+  // ── Boot sequence ─────────────────────────────────────────
+  async function boot() {
+
+    // 1. Verify session — redirect to login if none
+    const user = await initAuth();
+    if (!user) {
+      window.location.href = 'index.html';
+      return;
+    }
+
+    // 2. Initialise UI system (tabs, word count, sign-out button)
+    initUI();
+
+    // 3. Show user info in nav + settings
+    renderUserNav();
+    const settingsEmailEl = document.getElementById('settingsEmail');
+    if (settingsEmailEl) settingsEmailEl.textContent = user.email || 'Unknown';
+
+    // 4. Initialise humanize module (wires buttons, loads rate limit)
+    initHumanize();
+
+    // 5. Initialise settings panel (key status, save/delete buttons)
+    await initSettings();
+
+    // 6. Load profile from backend (restores across devices/sessions)
+    const savedProfile = await loadProfileFromBackend();
+    if (savedProfile) {
+      renderProfileStats(savedProfile);
+      renderProfileDetail(savedProfile, getAcceptedCount());
+      hideNoProfileBanner();
+    } else {
+      showNoProfileBanner();
+    }
+
+    // 7. Register tab-open callbacks
+    onTabOpen('history', renderHistory);
+    onTabOpen('profile', () => {
+      renderProfileDetail(getProfile(), getAcceptedCount());
+    });
+    onTabOpen('humanize', () => {
+      if (!getProfile()) showNoProfileBanner();
+      else hideNoProfileBanner();
+    });
+
+    // 8. Listen for restore events from history.js
+    document.addEventListener('humanizer:restoreOutput', (e) => {
+      const { input, output } = e.detail;
+      // Re-render the output pane with the restored content
+      const outputEl = document.getElementById('outputContent');
+      if (outputEl) {
+        outputEl.classList.remove('empty');
+        outputEl.textContent = output;
+      }
+      updateWordCount(output);
+    });
+
+    document.addEventListener('humanizer:setStrength', (e) => {
+      const { strength } = e.detail;
+      const btn = document.querySelector(`.strength-opt[data-strength="${strength}"]`);
+      if (btn) btn.click();
+    });
+  }
+
+  // ── Global handlers (called from HTML onclick attributes) ──
+
+  window.runHumanize = () => humanize();
+
+  window.switchTabGlobal = (name) => switchTab(name);
+
+  window.clearInput = () => {
+    const inputEl  = document.getElementById('inputText');
+    const outputEl = document.getElementById('outputContent');
+    const feedbackRow = document.getElementById('feedbackRow');
+    const outputWCBar = document.getElementById('outputWCBar');
+    if (inputEl)  { inputEl.value = ''; inputEl.dispatchEvent(new Event('input')); }
+    if (outputEl) { outputEl.classList.add('empty'); outputEl.textContent = 'Output will appear here after humanizing.'; }
+    if (feedbackRow) feedbackRow.style.display = 'none';
+    if (outputWCBar) outputWCBar.style.display = 'none';
+    document.getElementById('rewriteBtn') && (document.getElementById('rewriteBtn').disabled = true);
+  };
+
+  window.handleAddSample = () => {
+    const input  = document.getElementById('sampleInput');
+    const result = addSample(input?.value || '');
+    if (!result.success) { toast(result.message, 'error'); return; }
+    if (input) input.value = '';
+    const n = getSampleCount();
+    const countEl = document.getElementById('sampleCount');
+    if (countEl) countEl.textContent = `${n} sample${n !== 1 ? 's' : ''} added`;
+    document.getElementById('buildBtn') && (document.getElementById('buildBtn').disabled = false);
+    const preview = buildProfile(); // auto-build for live stats
+    renderProfileStats(preview);
+    toast(result.message, 'success');
+  };
+
+  window.handleBuildProfile = async () => {
+    const profile = buildProfile();
+    if (!profile) { toast('Add at least one writing sample first.', 'error'); return; }
+    renderProfileStats(profile);
+    renderProfileDetail(profile, getAcceptedCount());
+    hideNoProfileBanner();
+    const saved = await saveProfileToBackend();
+    toast(saved
+      ? `Profile built from ${getSampleCount()} samples and saved.`
+      : `Profile built — could not sync to server (will retry).`,
+      saved ? 'success' : 'warning'
+    );
+  };
+
+  window.handleClearSamples = () => {
+    if (!confirm('Clear all writing samples and reset the profile?')) return;
+    clearSamples();
+    const countEl = document.getElementById('sampleCount');
+    if (countEl) countEl.textContent = '0 samples added';
+    document.getElementById('buildBtn') && (document.getElementById('buildBtn').disabled = true);
+    renderProfileStats(null);
+    renderProfileDetail(null);
+    showNoProfileBanner();
+    toast('Samples cleared.', '');
+  };
+
+  window.handleClearProfile = () => {
+    if (!confirm('Reset your style profile entirely?')) return;
+    clearSamples();
+    renderProfileDetail(null);
+    showNoProfileBanner();
+    toast('Profile reset.', '');
+  };
+
+  window.handleClearHistory = () => clearHistory();
+
+  window.handleSignOut = () => signOut();
+
+  // ── Start ─────────────────────────────────────────────────
+  boot().catch(err => {
+    console.error('[app] boot error:', err);
+  });
+</script>
+
+</body>
+</html>

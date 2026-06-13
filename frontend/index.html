@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="description" content="Humanizer — rewrite AI-generated text to match your personal writing style and pass AI detection tools."/>
+  <title>Humanizer — Write like yourself</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="css/style.css"/>
+
+  <!-- Supabase CDN (loaded before our JS modules) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+
+  <style>
+    /* ── Login-page-specific styles ── */
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      background: var(--ink-0);
+      padding: var(--sp-6);
+    }
+
+    .auth-card {
+      width: 100%;
+      max-width: 380px;
+      animation: fadeUp 0.3s ease both;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Feature list */
+    .feature-list {
+      list-style: none;
+      margin: var(--sp-6) 0;
+      display: flex;
+      flex-direction: column;
+      gap: var(--sp-2);
+    }
+    .feature-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--sp-3);
+      font-size: 12px;
+      color: var(--text-2);
+      font-family: var(--font-sans);
+      line-height: 1.5;
+    }
+    .feature-list li::before {
+      content: '→';
+      color: var(--green);
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    /* Loading overlay while checking existing session */
+    .checking-session {
+      display: flex;
+      align-items: center;
+      gap: var(--sp-3);
+      font-size: 12px;
+      color: var(--text-3);
+      margin-top: var(--sp-5);
+    }
+
+    /* Error state */
+    .auth-error {
+      display: none;
+      margin-top: var(--sp-4);
+      padding: var(--sp-3) var(--sp-4);
+      background: var(--red-dim);
+      border: 1px solid var(--red-mid);
+      color: var(--red);
+      font-size: 12px;
+      border-radius: var(--radius-sm);
+      font-family: var(--font-sans);
+    }
+    .auth-error.show { display: block; }
+  </style>
+</head>
+<body>
+
+  <div class="auth-card">
+
+    <!-- Logo -->
+    <div style="text-align:center; margin-bottom:var(--sp-6)">
+      <div class="auth-logo">human<span>izer</span></div>
+      <p class="auth-tagline">
+        Rewrites AI-generated text to match<br/>
+        your personal writing style.
+      </p>
+    </div>
+
+    <!-- Feature list -->
+    <ul class="feature-list">
+      <li>Learns your style from writing samples</li>
+      <li>Targets GPTZero and Turnitin detection signals</li>
+      <li>Adapts with every rewrite you accept</li>
+      <li>Your API key stays encrypted — never exposed</li>
+    </ul>
+
+    <!-- Divider -->
+    <div class="auth-divider">sign in to continue</div>
+
+    <!-- Google sign-in button -->
+    <button class="btn-google" id="googleSignInBtn" onclick="handleGoogleSignIn()">
+      <!-- Google logo SVG -->
+      <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
+        <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
+        <path d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z" fill="#34A853"/>
+        <path d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707s.102-1.167.282-1.707V4.961H.957C.347 6.175 0 7.548 0 9s.348 2.825.957 4.039l3.007-2.332z" fill="#FBBC05"/>
+        <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.961L3.964 7.293C4.672 5.166 6.656 3.58 9 3.58z" fill="#EA4335"/>
+      </svg>
+      Continue with Google
+    </button>
+
+    <!-- Error display -->
+    <div class="auth-error" id="authError"></div>
+
+    <!-- Footer -->
+    <p class="auth-footer" style="text-align:center; margin-top:var(--sp-6)">
+      Your writing samples and API key are stored<br/>
+      securely and never shared.
+    </p>
+  </div>
+
+  <!-- Session check indicator (hidden once resolved) -->
+  <div class="checking-session" id="sessionCheck">
+    <div class="loader-dots">
+      <span></span><span></span><span></span>
+    </div>
+    <span>Checking session…</span>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast"></div>
+
+  <script type="module">
+    import { initAuth, signInWithGoogle } from './js/auth.js';
+
+    // ── Check for existing session on page load ─────────────────
+    // If the user is already signed in (e.g. refreshed the page),
+    // skip the login screen and go straight to the app.
+    async function init() {
+      const sessionCheckEl = document.getElementById('sessionCheck');
+
+      const user = await initAuth();
+
+      if (user) {
+        // Already signed in — redirect immediately
+        window.location.href = 'app.html';
+        return;
+      }
+
+      // No session — show the login UI
+      if (sessionCheckEl) sessionCheckEl.style.display = 'none';
+    }
+
+    // ── Google sign-in handler ──────────────────────────────────
+    window.handleGoogleSignIn = async function() {
+      const btn     = document.getElementById('googleSignInBtn');
+      const errorEl = document.getElementById('authError');
+
+      btn.disabled       = true;
+      btn.textContent    = 'Redirecting…';
+      errorEl.classList.remove('show');
+
+      try {
+        await signInWithGoogle();
+        // signInWithGoogle() triggers a redirect — nothing after this runs
+      } catch (err) {
+        console.error('[login] sign-in error:', err);
+        errorEl.textContent = `Sign-in failed: ${err.message || 'Please try again.'}`;
+        errorEl.classList.add('show');
+        btn.disabled    = false;
+        btn.textContent = 'Continue with Google';
+      }
+    };
+
+    init();
+  </script>
+
+</body>
+</html>

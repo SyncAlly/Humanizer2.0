@@ -1,0 +1,26 @@
+# ── Web framework ──────────────────────────────────────────
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+
+# ── HTTP client (async, used for Gemini streaming) ─────────
+httpx==0.27.2
+
+# ── Data validation ─────────────────────────────────────────
+pydantic==2.10.3
+
+# ── Environment variables ───────────────────────────────────
+python-dotenv==1.0.1
+
+# ── Supabase client ─────────────────────────────────────────
+supabase==2.10.0
+
+# ── JWT validation ──────────────────────────────────────────
+python-jose[cryptography]==3.3.0
+
+# ── Encryption (AES-256-GCM) ────────────────────────────────
+cryptography==43.0.3
+
+# ── Type hints backport (Python 3.11 compatibility) ────────
+# Already included in Python 3.11+ stdlib but listed for clarity
+# No install needed — remove if causing issues
+# typing-extensions==4.12.2
