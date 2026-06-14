@@ -18,6 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from datetime import datetime, timezone
 
 from core.config import get_supabase
+from core.db import run_db
 from routers.auth import get_current_user
 from models.schemas import (
     StyleProfile,
@@ -45,11 +46,10 @@ async def get_profile(user: UserInfo = Depends(get_current_user)):
     supabase = get_supabase()
 
     try:
-        result = (
+        result = await run_db(
             supabase.table("profiles")
             .select("profile_data")
             .eq("user_id", user.user_id)
-            .execute()
         )
     except Exception as e:
         raise HTTPException(
@@ -87,14 +87,16 @@ async def save_profile(
     supabase = get_supabase()
 
     try:
-        supabase.table("profiles").upsert(
-            {
-                "user_id":      user.user_id,
-                "profile_data": request.profile.model_dump(),
-                "updated_at":   datetime.now(timezone.utc).isoformat(),
-            },
-            on_conflict="user_id",
-        ).execute()
+        await run_db(
+            supabase.table("profiles").upsert(
+                {
+                    "user_id":      user.user_id,
+                    "profile_data": request.profile.model_dump(),
+                    "updated_at":   datetime.now(timezone.utc).isoformat(),
+                },
+                on_conflict="user_id",
+            )
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -118,9 +120,9 @@ async def delete_profile(user: UserInfo = Depends(get_current_user)):
     supabase = get_supabase()
 
     try:
-        supabase.table("profiles").delete().eq(
-            "user_id", user.user_id
-        ).execute()
+        await run_db(
+            supabase.table("profiles").delete().eq("user_id", user.user_id)
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -159,14 +161,16 @@ async def accept_sample(
         )
 
     try:
-        supabase.table("profiles").upsert(
-            {
-                "user_id":      user.user_id,
-                "profile_data": request.profile.model_dump(),
-                "updated_at":   datetime.now(timezone.utc).isoformat(),
-            },
-            on_conflict="user_id",
-        ).execute()
+        await run_db(
+            supabase.table("profiles").upsert(
+                {
+                    "user_id":      user.user_id,
+                    "profile_data": request.profile.model_dump(),
+                    "updated_at":   datetime.now(timezone.utc).isoformat(),
+                },
+                on_conflict="user_id",
+            )
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

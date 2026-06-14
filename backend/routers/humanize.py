@@ -24,6 +24,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 
 from core.config import get_settings, get_supabase
+from core.db import run_db
 from core.encryption import encrypt_api_key, decrypt_api_key
 from core.rate_limiter import check_and_increment, get_usage
 from core.prompt_builder import build_system_prompt, build_user_message
@@ -60,12 +61,11 @@ async def _get_user_gemini_key(user_id: str) -> str:
     supabase = get_supabase()
 
     try:
-        result = (
+        result = await run_db(
             supabase.table("api_keys")
             .select("encrypted_key")
             .eq("user_id", user_id)
             .single()
-            .execute()
         )
     except Exception as e:
         raise HTTPException(
@@ -297,13 +297,15 @@ async def save_api_key(
     encrypted = encrypt_api_key(request.api_key)
 
     try:
-        supabase.table("api_keys").upsert(
-            {
-                "user_id":       user.user_id,
-                "encrypted_key": encrypted,
-            },
-            on_conflict="user_id",
-        ).execute()
+        await run_db(
+            supabase.table("api_keys").upsert(
+                {
+                    "user_id":       user.user_id,
+                    "encrypted_key": encrypted,
+                },
+                on_conflict="user_id",
+            )
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -325,11 +327,10 @@ async def get_key_status(user: UserInfo = Depends(get_current_user)):
     supabase = get_supabase()
 
     try:
-        result = (
+        result = await run_db(
             supabase.table("api_keys")
             .select("user_id")
             .eq("user_id", user.user_id)
-            .execute()
         )
         has_key = bool(result.data)
     except Exception:
@@ -349,9 +350,9 @@ async def delete_api_key(user: UserInfo = Depends(get_current_user)):
     supabase = get_supabase()
 
     try:
-        supabase.table("api_keys").delete().eq(
-            "user_id", user.user_id
-        ).execute()
+        await run_db(
+            supabase.table("api_keys").delete().eq("user_id", user.user_id)
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

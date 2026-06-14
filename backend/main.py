@@ -21,6 +21,7 @@ Deploy to Railway:
 
 import os
 import sys
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -41,7 +42,7 @@ async def lifespan(app: FastAPI):
     clear error instead of crashing on the first real request.
     """
     # ── Startup ──────────────────────────────────────────────────
-    print("── Humanizer API starting up ──")
+    print("-- Humanizer API starting up --")
 
     try:
         settings = get_settings()
@@ -52,23 +53,28 @@ async def lifespan(app: FastAPI):
         print("Fix your .env file and restart.\n")
         sys.exit(1)
 
-    # Verify Supabase connection
+    # Verify Supabase connection.
+    # supabase-py is synchronous — always run it in a thread pool executor
+    # so it never blocks the async event loop. Calling it directly from async
+    # code will freeze the server and prevent it from handling any requests.
     try:
-        supabase = get_supabase()
-        # Lightweight query to confirm DB is reachable
-        supabase.table("profiles").select("user_id").limit(1).execute()
-        print("  Supabase     : connected ✓")
+        def _check_supabase():
+            supabase = get_supabase()
+            supabase.table("profiles").select("user_id").limit(1).execute()
+
+        await asyncio.get_event_loop().run_in_executor(None, _check_supabase)
+        print("  Supabase     : connected [OK]")
     except Exception as e:
         print(f"\n[FATAL] Supabase connection failed: {e}")
         print("Check SUPABASE_URL and SUPABASE_SERVICE_KEY in your .env file.\n")
         sys.exit(1)
 
-    print("── Ready to accept requests ──\n")
+    print("-- Ready to accept requests --\n")
 
     yield  # Application runs here
 
     # ── Shutdown ─────────────────────────────────────────────────
-    print("\n── Humanizer API shutting down ──")
+    print("\n-- Humanizer API shutting down --")
 
 
 # ── App instance ───────────────────────────────────────────────────────────

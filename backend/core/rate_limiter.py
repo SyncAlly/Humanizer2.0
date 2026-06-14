@@ -24,6 +24,7 @@ Table used (created in README setup SQL):
 from datetime import datetime, timezone, timedelta
 from fastapi import HTTPException, status
 from core.config import get_supabase
+from core.db import run_db
 
 # Limits — adjust these to match your Gemini free tier budget
 MAX_REQUESTS_PER_HOUR: int = 20   # per user per hour
@@ -60,22 +61,20 @@ async def check_and_increment(user_id: str) -> dict:
 
     try:
         # ── Count requests in the last hour ──────────────────────
-        hourly_result = (
+        hourly_result = await run_db(
             supabase.table("rate_limits")
             .select("*", count="exact")
             .eq("user_id", user_id)
             .gte("window_start", one_hour_ago.isoformat())
-            .execute()
         )
         hourly_count = hourly_result.count or 0
 
         # ── Count requests in the last day ───────────────────────
-        daily_result = (
+        daily_result = await run_db(
             supabase.table("rate_limits")
             .select("*", count="exact")
             .eq("user_id", user_id)
             .gte("window_start", one_day_ago.isoformat())
-            .execute()
         )
         daily_count = daily_result.count or 0
 
@@ -108,21 +107,24 @@ async def check_and_increment(user_id: str) -> dict:
             )
 
         # ── Record this request ───────────────────────────────────
-        supabase.table("rate_limits").insert({
-            "user_id":      user_id,
-            "window_start": now.isoformat(),
-            "request_count": 1,
-        }).execute()
+        await run_db(
+            supabase.table("rate_limits").insert({
+                "user_id":       user_id,
+                "window_start":  now.isoformat(),
+                "request_count": 1,
+            })
+        )
 
         # ── Clean up old rows (lazy GC) ───────────────────────────
-        # Delete rows older than 2 days — keeps the table small.
-        # Fire-and-forget: don't block the response on cleanup.
         two_days_ago = now - timedelta(days=2)
-        supabase.table("rate_limits").delete().eq(
-            "user_id", user_id
-        ).lt(
-            "window_start", two_days_ago.isoformat()
-        ).execute()
+        try:
+            await run_db(
+                supabase.table("rate_limits").delete()
+                .eq("user_id", user_id)
+                .lt("window_start", two_days_ago.isoformat())
+            )
+        except Exception:
+            pass  # cleanup failure is not worth surfacing
 
         return {
             "requests_this_hour":  hourly_count + 1,
@@ -159,19 +161,17 @@ async def get_usage(user_id: str) -> dict:
     one_day_ago  = now - timedelta(days=WINDOW_DAYS)
 
     try:
-        hourly = (
+        hourly = await run_db(
             supabase.table("rate_limits")
             .select("*", count="exact")
             .eq("user_id", user_id)
             .gte("window_start", one_hour_ago.isoformat())
-            .execute()
         )
-        daily = (
+        daily = await run_db(
             supabase.table("rate_limits")
             .select("*", count="exact")
             .eq("user_id", user_id)
             .gte("window_start", one_day_ago.isoformat())
-            .execute()
         )
         hourly_count = hourly.count or 0
         daily_count  = daily.count or 0

@@ -179,30 +179,34 @@ def _build_anti_detection_section() -> str:
     return f"""
 == ANTI-DETECTION RULES (apply to every output, no exceptions) ==
 
-Banned words and phrases — never use any of these:
-{banned}, [and all similar AI-characteristic filler phrases]
+Formality & Register Matching:
+- Match the underlying formality of the input. If the input is professional, write in a natural, clean, professional voice (like a skilled human writer). If the input is casual, write in an informal, conversational voice.
+- Never force casual slang, idioms, or colloquialisms (e.g. 'pretty wild', 'slashes costs', 'ton of money') into a professional or business text. This makes the text sound unnatural and flags it as over-engineered.
+- Keep the writing clear, direct, and sophisticated when rewriting academic or business documents.
 
-Perplexity injection:
-- Replace at least 20% of common adjectives and verbs with less statistically
-  expected but equally correct alternatives.
-- When two word choices are equivalent, always pick the less obvious one.
-- Avoid the most probable next word whenever a slightly surprising one fits.
+Reading Level & Structure:
+- Write at a natural 9th to 11th-grade reading level for general text.
+- Use contractions naturally (e.g., 'it's', 'don't', 'can't', 'we're') where appropriate for the formality level.
+- Replace predictable, low-perplexity vocabulary transitions. Avoid common AI connector words (e.g., 'Furthermore', 'Moreover', 'Additionally', 'In conclusion'). Instead, transition between ideas using logical flow.
 
-Rhythm rules:
-- Never write three consecutive sentences of similar length.
-- At least one sentence per paragraph should feel like a genuine spoken
-  thought — slightly informal, a mid-idea pivot, or an incomplete structure.
-- Do not start every paragraph with a topic sentence.
-- Transition between ideas without transition words — just cut to it.
+Burstiness & Cadence:
+- Match human sentence variety: write some very short, punchy sentences (3-8 words) followed by longer, descriptive sentences (15-30 words).
+- Vary sentence beginnings: do not start consecutive sentences with the same words, subjects, or pronouns.
+- Prefer active voice verbs over passive voice constructions.
 
-Grammar and formality:
-- Do not correct every grammar edge case — slight informality is human.
-- Vary punctuation: mix commas, dashes, and periods as clause separators.
-- One-sentence paragraphs for emphasis are fine.
+FEW-SHOT EXAMPLES:
 
-Structure:
-- Do not follow a strict intro-body-conclusion arc unless the original does.
-- Do not mirror the original's paragraph structure if strength is medium or aggressive.
+Original Formal AI Text:
+"Artificial intelligence has fundamentally transformed the landscape of modern software development. By leveraging machine learning algorithms, developers can now automate previously time-consuming tasks with unprecedented efficiency."
+
+Humanized Professional Version (Passes GPTZero):
+"AI is shifting how we approach software development. Developers now use machine learning to automate tedious, repetitive tasks, saving hours of manual work."
+
+Original Casual AI Text:
+"Furthermore, the integration of AI-powered tools into development workflows has enabled organizations to significantly reduce operational costs while improving output quality."
+
+Humanized Casual Version (Passes GPTZero):
+"But it's not just about speed. Teams bringing AI into their workflow are saving a lot of money, and the final code actually ends up being much more solid."
 """.strip()
 
 

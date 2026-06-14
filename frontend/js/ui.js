@@ -263,22 +263,34 @@ async function _refreshKeyStatus() {
   const statusEl = document.getElementById('keyStatus');
   if (!statusEl) return;
 
-  try {
-    const response = await fetch(`${getBackendUrl()}/api/key/status`, {
-      headers: getAuthHeaders(),
-    });
-    const data = await response.json();
+  // Retry once after a short delay to handle the race condition where
+  // initAuth() hasn't fully restored the session by the time this runs.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const response = await fetch(`${getBackendUrl()}/api/key/status`, {
+        headers: getAuthHeaders(),  // throws if session not ready
+      });
+      const data = await response.json();
 
-    if (data.has_key) {
-      statusEl.textContent = '✓ API key configured';
-      statusEl.className   = 'key-status has-key';
-    } else {
-      statusEl.textContent = 'No API key saved';
-      statusEl.className   = 'key-status';
+      if (data.has_key) {
+        statusEl.textContent = 'API key configured';
+        statusEl.className   = 'key-status has-key';
+      } else {
+        statusEl.textContent = 'No API key saved';
+        statusEl.className   = 'key-status';
+      }
+      return; // success — stop retrying
+
+    } catch (err) {
+      if (attempt === 0) {
+        // First attempt failed — wait 800ms and try once more
+        await new Promise(r => setTimeout(r, 800));
+      } else {
+        // Both attempts failed — show a clear error, not "Checking..."
+        statusEl.textContent = 'Could not reach server';
+        statusEl.className   = 'key-status';
+      }
     }
-  } catch {
-    statusEl.textContent = 'Could not check key status';
-    statusEl.className   = 'key-status';
   }
 }
 

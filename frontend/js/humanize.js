@@ -457,5 +457,33 @@ function _mapStatusToMessage(status, detail) {
     500: 'Server error — try again shortly.',
     503: 'Server unavailable — try again shortly.',
   };
-  return map[status] || detail || `Request failed (HTTP ${status})`;
+
+  if (map[status]) {
+    return map[status];
+  }
+
+  if (detail) {
+    if (typeof detail === 'string') {
+      return detail;
+    }
+    if (typeof detail === 'object') {
+      if (detail.message) return detail.message;
+      if (detail.error) return detail.error;
+      if (Array.isArray(detail)) {
+        // Validation errors from FastAPI/Pydantic
+        const first = detail[0];
+        if (first && first.msg) {
+          const field = first.loc ? first.loc.join('.') : '';
+          return field ? `${field}: ${first.msg}` : first.msg;
+        }
+      }
+      try {
+        return JSON.stringify(detail);
+      } catch {
+        // Fallback
+      }
+    }
+  }
+
+  return `Request failed (HTTP ${status})`;
 }

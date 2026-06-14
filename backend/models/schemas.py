@@ -116,11 +116,6 @@ class HumanizeRequest(BaseModel):
         default=None,
         description="User's style profile — if None, generic humanization is used"
     )
-    gemini_api_key: str = Field(
-        ...,
-        min_length=10,
-        description="User's Gemini API key — decrypted server-side before use"
-    )
 
     @field_validator("text")
     @classmethod
